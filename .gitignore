@@ -9,7 +9,7 @@ lerna-debug.log*
 
 node_modules
 .env
-firebase.jsx
+
 dist
 dist-ssr
 *.local
