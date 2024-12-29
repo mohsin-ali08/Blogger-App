@@ -1,400 +1,300 @@
 import React, { useContext, useEffect, useState } from "react";
 import { createContext } from "react";
 
-//env variables in string format
+// env variables in string format
 import conf from "../conf/conf";
 
-//random id generator
+
 import { v4 } from "uuid";
 
-//firebase import
 import { initializeApp } from "firebase/app";
 import { getAnalytics } from "firebase/analytics";
 
-//firestore database imports
 import {
-	getFirestore,
-	addDoc,
-	doc,
-	collection,
-	deleteDoc,
-	getDoc,
-	getDocs,
-	where,
-	query,
-	updateDoc,
+  getFirestore,
+  addDoc,
+  doc,
+  collection,
+  deleteDoc,
+  getDoc,
+  getDocs,
+  where,
+  query,
+  updateDoc,
 } from "firebase/firestore";
 
-//firebase storage/images folder imports
+// firebase storage/images folder imports
 import {
-	deleteObject,
-	getDownloadURL,
-	getStorage,
-	ref,
-	uploadBytes,
+  deleteObject,
+  getDownloadURL,
+  getStorage,
+  ref,
+  uploadBytes,
 } from "firebase/storage";
 
-//authentication imports from firebase
+// authentication imports from firebase
 import {
-	getAuth,
-	onAuthStateChanged,
-	createUserWithEmailAndPassword,
-	signInWithEmailAndPassword,
-	signOut,
-	updateProfile,
-	GoogleAuthProvider,
-	signInWithPopup,
+  getAuth,
+  onAuthStateChanged,
+  createUserWithEmailAndPassword,
+  signInWithEmailAndPassword,
+  signOut,
+  updateProfile,
+  GoogleAuthProvider,
+  signInWithPopup,
 } from "firebase/auth";
 
-
-const firebaseConfig = {
-	// your firebase key
-  };
-
-
-
 // Initialize Firebase
-const app = initializeApp(firebaseConfig);
+const app = initializeApp(conf);
 const analytics = getAnalytics(app);
 
-//authentication
+// Firebase services
 const auth = getAuth();
-
-//database or firestore
 const db = getFirestore(app);
-
-//storage or bucket
 const storage = getStorage();
 
-//creating context
+// Creating context
 const services = createContext();
 
-//custom hook
+// Custom hook
 export const useFirebase = () => useContext(services);
 
 export function FirebaseProvider({ children }) {
-	const [user, setUser] = useState(null);
+  const [user, setUser] = useState(null);
 
-	//get current logged in user
-	function getCurrentUser() {
-		onAuthStateChanged(auth, (user) => {
-			if (res) {
-				const res = user;
-				setUser(uid);
-			}
-		});
-	}
+  // Get current logged-in user
+  useEffect(() => {
+    const unsubscribe = onAuthStateChanged(auth, (user) => {
+      if (user) {
+        setUser(user); // Directly set the user object
+      } else {
+        setUser(null);
+      }
+    });
 
-	//register user
-	async function createUser(email, password, name) {
-		try {
-			const userCredential = await createUserWithEmailAndPassword(
-				auth,
-				email,
-				password,
-				name
-			);
-			const res = userCredential.user;
-			setUser(res);
+    // Cleanup subscription
+    return () => unsubscribe();
+  }, []);
 
-			let userId = res.uid;
+  // Register user
+  async function createUser(email, password, name) {
+    try {
+      const userCredential = await createUserWithEmailAndPassword(
+        auth,
+        email,
+        password
+      );
+      const res = userCredential.user;
+      setUser(res);
 
-			//setting user profile
-			if (res) {
-				const docRef = await addDoc(collection(db, "user"), {
-					avatarURL: "",
-					name,
-					userId,
-				});
-			}
-			console.log("Document written with ID: ", docRef);
-			return true;
-		} catch (error) {
-			return error.message;
-		}
-	}
+      const userId = res.uid;
 
-	async function signInWithGoogle() {
-		const provider = new GoogleAuthProvider();
-		const auth = getAuth();
-		signInWithPopup(auth, provider)
-			.then((result) => {
-				const credential =
-					GoogleAuthProvider.credentialFromResult(result);
-				const token = credential.accessToken;
-				const user = result.user;
-				console.log(user);
-			})
-			.catch((error) => {
-				console.log("Sign in With Google:", error);
-			});
-	}
+      // Setting user profile
+      const docRef = await addDoc(collection(db, "user"), {
+        avatarURL: "",
+        name,
+        userId,
+      });
+      console.log("Document written with ID: ", docRef.id);
+      return true;
+    } catch (error) {
+      console.log(error.message);
+      return false;
+    }
+  }
 
-	//login user
-	async function loginUser(email, password) {
-		try {
-			const userCredential = await signInWithEmailAndPassword(
-				auth,
-				email,
-				password
-			);
-			const res = userCredential.user;
-			setUser(res);
-			return true;
-		} catch (error) {
-			const errorCode = error.code;
-			const errorMessage = error.message;
-			console.log("Login User" + errorCode + errorMessage);
-			return false;
-		}
-	}
+  // Sign in with Google
+  async function signInWithGoogle() {
+    const provider = new GoogleAuthProvider();
+    try {
+      const result = await signInWithPopup(auth, provider);
+      const user = result.user;
+      console.log(user);
+    } catch (error) {
+      console.log("Sign in with Google:", error);
+    }
+  }
 
-	//update user profile
-	async function updateUserProfile(
-		avatarURL = "",
-		name = "",
-		userDocId = ""
-	) {
-		const docRef = doc(db, "user", userDocId);
-		const docSnap = await getDoc(docRef);
+  // Login user
+  async function loginUser(email, password) {
+    try {
+      const userCredential = await signInWithEmailAndPassword(
+        auth,
+        email,
+        password
+      );
+      const res = userCredential.user;
+      setUser(res);
+      return true;
+    } catch (error) {
+      console.log("Login User", error);
+      return false;
+    }
+  }
 
-		if (avatarURL && name) {
-			if (docSnap.exists()) {
-				console.log("Document data:", docSnap.data());
-				if (docSnap.data().avatarURL) {
-					const deleteRes = await deleteFiles(
-						docSnap.data().avatarURL
-					);
-					console.log(deleteRes);
-				}
-			} else {
-				console.log("No such document!");
-			}
-			if (userDocId) {
-				const res = await updateDoc(docRef, {
-					avatarURL,
-					name,
-				});
-				return res;
-			}
-		} else if (!avatarURL && name) {
-			if (userDocId) {
-				const res = await updateDoc(docRef, {
-					name,
-				});
-				return res;
-			}
-		} else if (!name && avatarURL) {
-			const res = await updateDoc(docRef, {
-				avatarURL,
-			});
-			return res;
-		}
-	}
+  // Update user profile
+  async function updateUserProfile(avatarURL = "", name = "", userDocId = "") {
+    const docRef = doc(db, "user", userDocId);
+    const docSnap = await getDoc(docRef);
 
-	async function getUser(userId) {
-		try {
-			if (userId) {
-				console.log(userId);
-				const q = query(
-					collection(db, "user"),
-					where("userId", "==", userId)
-				);
-				const querySnapshot = await getDocs(q);
-				return querySnapshot;
-			}
-		} catch (error) {
-			console.log("Get user: ", error);
-		}
-	}
+    if (avatarURL || name) {
+      if (docSnap.exists()) {
+        if (docSnap.data().avatarURL) {
+          await deleteFiles(docSnap.data().avatarURL);
+        }
+      }
+      await updateDoc(docRef, {
+        avatarURL,
+        name,
+      });
+    }
+  }
 
-	//logout user
-	async function logoutUser() {
-		try {
-			const res = await signOut(auth);
-			setUser(null);
-			return true;
-		} catch (error) {
-			return false;
-		}
-	}
+  // Get user by ID
+  async function getUser(userId) {
+    try {
+      const q = query(collection(db, "user"), where("userId", "==", userId));
+      const querySnapshot = await getDocs(q);
+      return querySnapshot;
+    } catch (error) {
+      console.log("Get user: ", error);
+    }
+  }
 
-	//create post
-	async function createPost(
-		title,
-		description,
-		content,
-		imgURL,
-		userId,
-		category
-	) {
-		try {
-			let date = new Date();
-			let strDate = String(date);
-			const docRef = await addDoc(collection(db, "blog"), {
-				content,
-				description,
-				imgURL,
-				title,
-				userId,
-				strDate,
-				tag: category,
-			});
-			console.log("Document written with ID: ", docRef);
-			return docRef;
-		} catch (e) {
-			console.error("Create post: ", e);
-			return false;
-		}
-	}
+  // Logout user
+  async function logoutUser() {
+    try {
+      await signOut(auth);
+      setUser(null);
+      return true;
+    } catch (error) {
+      console.log("Logout User:", error);
+      return false;
+    }
+  }
 
-	//update post
-	async function updatePost(
-		postId,
-		content,
-		description,
-		imgURL,
-		title,
-		category
-	) {
-		try {
-			const docRef = doc(db, "blog", postId);
-			let date = new Date();
-			let strDate = String(date);
-			if (imgURL) {
-				const res = await updateDoc(docRef, {
-					content,
-					description,
-					imgURL,
-					title,
-					strDate,
-					tag: category,
-				});
-			} else {
-				const res = await updateDoc(docRef, {
-					content,
-					description,
-					title,
-					strDate,
-					tag: category,
-				});
-			}
-			return true;
-		} catch (e) {
-			console.error("Create post: ", e);
-			return false;
-		}
-	}
+  // Create post
+  async function createPost(title, description, content, imgURL, userId, category) {
+    try {
+      let date = new Date();
+      const docRef = await addDoc(collection(db, "blog"), {
+        content,
+        description,
+        imgURL,
+        title,
+        userId,
+        date,
+        category,
+      });
+      console.log("Document written with ID: ", docRef.id);
+      return docRef;
+    } catch (e) {
+      console.error("Create post: ", e);
+      return false;
+    }
+  }
 
-	//get single post
-	async function getPost(postId) {
-		const docRef = doc(db, "blog", postId);
-		const docSnap = await getDoc(docRef);
+  // Update post
+  async function updatePost(postId, content, description, imgURL, title, category) {
+    try {
+      const docRef = doc(db, "blog", postId);
+      let date = new Date();
+      if (imgURL) {
+        await updateDoc(docRef, { content, description, imgURL, title, date, category });
+      } else {
+        await updateDoc(docRef, { content, description, title, date, category });
+      }
+      return true;
+    } catch (e) {
+      console.error("Update post: ", e);
+      return false;
+    }
+  }
 
-		if (docSnap.exists()) {
-			// console.log("Document data:", docSnap.data());
-			return docSnap.data();
-		} else {
-			console.log("No such document!");
-			return docSnap;
-		}
-	}
+  // Get post by ID
+  async function getPost(postId) {
+    const docRef = doc(db, "blog", postId);
+    const docSnap = await getDoc(docRef);
+    return docSnap.exists() ? docSnap.data() : null;
+  }
 
-	//get all posts
-	async function getPosts(userId) {
-		try {
-			if (userId) {
-				console.log(userId);
-				const q = query(
-					collection(db, "blog"),
-					where("userId", "==", userId)
-				);
-				const querySnapshot = await getDocs(q);
-				return querySnapshot;
-			} else {
-				const querySnapshot = await getDocs(collection(db, "blog"));
-				return querySnapshot;
-			}
-		} catch (error) {
-			console.log("Get All Posts: ", error);
-		}
-	}
+  // Get all posts
+  async function getPosts(userId) {
+    try {
+      const q = userId
+        ? query(collection(db, "blog"), where("userId", "==", userId))
+        : collection(db, "blog");
+      const querySnapshot = await getDocs(q);
+      return querySnapshot;
+    } catch (error) {
+      console.log("Get All Posts: ", error);
+    }
+  }
 
-	//delete post
-	async function deletePost(postId) {
-		try {
-			const res = await deleteDoc(doc(db, "blog", postId));
-			console.log(res);
-			return true;
-		} catch (error) {
-			console.log("Delete post: ", error);
-			return false;
-		}
-	}
+  // Delete post
+  async function deletePost(postId) {
+    try {
+      await deleteDoc(doc(db, "blog", postId));
+      return true;
+    } catch (error) {
+      console.log("Delete post: ", error);
+      return false;
+    }
+  }
 
-	//upload file
-	async function uploadFiles(filePath, file) {
-		try {
-			const imgRef = ref(storage, `${filePath + v4()}`);
-			const res = await uploadBytes(imgRef, file);
-			return res;
-		} catch (error) {
-			console.log("upload file", error);
-			return null;
-		}
-	}
+  // Upload file
+  async function uploadFiles(filePath, file) {
+    try {
+      const imgRef = ref(storage, `${filePath + v4()}`);
+      const res = await uploadBytes(imgRef, file);
+      return res;
+    } catch (error) {
+      console.log("Upload file", error);
+      return null;
+    }
+  }
 
-	async function deleteFiles(file) {
-		try {
-			const desertRef = ref(storage, file);
-			// Delete the file
-			const res = await deleteObject(desertRef);
-			console.log(res);
-		} catch (error) {
-			console.log("Delete File: ", error);
-		}
-	}
+  // Delete file
+  async function deleteFiles(file) {
+    try {
+      const desertRef = ref(storage, file);
+      await deleteObject(desertRef);
+    } catch (error) {
+      console.log("Delete File: ", error);
+    }
+  }
 
-	//preview image
-	async function previewImage(imgId) {
-		try {
-			const url = await getDownloadURL(ref(storage, imgId));
-			return url;
-		} catch (error) {
-			console.log("Preview image: ", error);
-		}
-	}
+  // Preview image
+  async function previewImage(imgId) {
+    try {
+      const url = await getDownloadURL(ref(storage, imgId));
+      return url;
+    } catch (error) {
+      console.log("Preview image: ", error);
+    }
+  }
 
-	useEffect(() => {
-		onAuthStateChanged(auth, (user) => {
-			if (user) {
-				const res = user;
-				setUser(res);
-			}
-		});
-	}, [user]);
-
-	return (
-		<services.Provider
-			value={{
-				current: user,
-				createUser,
-				signInWithGoogle,
-				loginUser,
-				updateUserProfile,
-				getUser,
-				logoutUser,
-				createPost,
-				updatePost,
-				deletePost,
-				getPost,
-				getPosts,
-				uploadFiles,
-				deleteFiles,
-				previewImage,
-			}}
-		>
-			{children}
-		</services.Provider>
-	);
+  return (
+    <services.Provider
+      value={{
+        current: user,
+        createUser,
+        signInWithGoogle,
+        loginUser,
+        updateUserProfile,
+        getUser,
+        logoutUser,
+        createPost,
+        updatePost,
+        deletePost,
+        getPost,
+        getPosts,
+        uploadFiles,
+        deleteFiles,
+        previewImage,
+      }}
+    >
+      {children}
+    </services.Provider>
+  );
 }
