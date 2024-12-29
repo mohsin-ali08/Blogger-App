@@ -48,13 +48,13 @@ import {
 
 
 const firebaseConfig = {
-	apiKey: "AIzaSyDy9_ishE1vGTl9LdZIIWbdQPsp7vSrFp4",
-	authDomain: "bloging-web-f829e.firebaseapp.com",
-	projectId: "bloging-web-f829e",
-	storageBucket: "bloging-web-f829e.appspot.com",
-	messagingSenderId: "411057216272",
-	appId: "1:411057216272:web:e05a06212d93366e1d6395",
-	measurementId: "G-K79BX35VXF"
+	// apiKey: "AIzaSyDy9_ishE1vGTl9LdZIIWbdQPsp7vSrFp4",
+	// authDomain: "bloging-web-f829e.firebaseapp.com",
+	// projectId: "bloging-web-f829e",
+	// storageBucket: "bloging-web-f829e.appspot.com",
+	// messagingSenderId: "411057216272",
+	// appId: "1:411057216272:web:e05a06212d93366e1d6395",
+	// measurementId: "G-K79BX35VXF"
   };
 
 
